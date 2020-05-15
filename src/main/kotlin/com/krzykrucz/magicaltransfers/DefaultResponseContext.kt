@@ -5,7 +5,7 @@ import org.springframework.web.reactive.function.server.HandlerStrategies
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.result.view.ViewResolver
 
-object DefaultHandlerStrategiesResponseContext : ServerResponse.Context {
+object DefaultResponseContext : ServerResponse.Context {
 
     private val strategies: HandlerStrategies = HandlerStrategies.withDefaults()
 

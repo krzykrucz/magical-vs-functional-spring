@@ -76,7 +76,7 @@ class GlobalErrorWebExceptionHandler : ErrorWebExceptionHandler {
             .let(ServerResponse::status)
             .contentType(MediaType.TEXT_PLAIN)
             .bodyValue(error.localizedMessage)
-            .flatMap { it.writeTo(exchange, DefaultHandlerStrategiesResponseContext) }
+            .flatMap { it.writeTo(exchange, DefaultResponseContext) }
 
 }
 
@@ -90,7 +90,7 @@ class TracingWebFilter : WebFilter {
 }
 
 @Configuration
-class HelloWebfluxSecurityConfig {
+class SecurityConfig {
 
     @Bean
     fun userDetailsService(): MapReactiveUserDetailsService =
