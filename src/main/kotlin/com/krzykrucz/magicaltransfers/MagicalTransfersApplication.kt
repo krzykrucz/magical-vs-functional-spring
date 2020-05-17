@@ -56,7 +56,7 @@ class AccountController(val accountRepository: AccountRepository) {
             .flatMap { accountRepository.save(it) }
 
     @PostMapping("/create/{accountNumber}")
-    fun creditAccount(@PathVariable("accountNumber") accountNumber: String): Mono<Account> =
+    fun createAccount(@PathVariable("accountNumber") accountNumber: String): Mono<Account> =
         Account(accountNumber, BigDecimal.ZERO)
             .let(accountRepository::save)
 
