@@ -8,7 +8,7 @@ plugins {
     groovy
 }
 
-//extra["spring-security.version"] = "5.4.0-M1"
+extra["spring-security.version"] = "5.4.0-M1"
 
 group = "com.krzykrucz"
 version = "0.0.1-SNAPSHOT"

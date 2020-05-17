@@ -9,9 +9,9 @@ import org.springframework.data.mongodb.repository.ReactiveMongoRepository
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.config.web.server.ServerHttpSecurity
+import org.springframework.security.config.web.server.invoke
 import org.springframework.security.core.userdetails.MapReactiveUserDetailsService
 import org.springframework.security.core.userdetails.User
-import org.springframework.security.web.server.SecurityWebFilterChain
 import org.springframework.web.reactive.function.server.EntityResponse
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyToMono
@@ -98,11 +98,11 @@ class SecurityConfig {
             .let { MapReactiveUserDetailsService(it) }
 
     @Bean
-    fun springSecurityFilterChain(http: ServerHttpSecurity): SecurityWebFilterChain =
-        http.authorizeExchange()
-            .anyExchange().authenticated()
-            .and()
-            .httpBasic()
-            .and()
-            .build()
+    fun springSecurityFilterChain(http: ServerHttpSecurity) =
+        http {
+            authorizeExchange {
+                authorize(anyExchange, authenticated)
+            }
+            httpBasic { }
+        }
 }
