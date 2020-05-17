@@ -1,40 +1,40 @@
 package com.krzykrucz.magicaltransfers
 
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.ApplicationContext
+
+import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
-import org.springframework.test.context.ContextConfiguration
 import org.springframework.test.web.reactive.server.WebTestClient
 import reactor.test.StepVerifier
+import spock.lang.Shared
 import spock.lang.Specification
 
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockUser
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.springSecurity
 
-@SpringBootTest
-@ContextConfiguration(initializers = BeansInitializer)
 class IntegrationSpec extends Specification {
 
+    @Shared
     WebTestClient webClientWithAuth
 
+    @Shared
     WebTestClient webClientNoAuth
 
-    @Autowired
-    ApplicationContext context
-
-    @Autowired
+    @Shared
     ReactiveMongoTemplate mongoTemplate
 
+    @Shared
+    ConfigurableApplicationContext context
 
-    def setup() {
+    def setupSpec() {
+        context = MagicalTransfersApplicationKt.app.run([] as String[], 'test', true)
         webClientNoAuth = WebTestClient.bindToApplicationContext(context)
                 .apply(springSecurity())
                 .configureClient()
                 .build()
                 .mutateWith(csrf())
         webClientWithAuth = webClientNoAuth.mutateWith(mockUser())
+        mongoTemplate = context.getBean(ReactiveMongoTemplate)
     }
 
     def cleanup() {
@@ -43,6 +43,10 @@ class IntegrationSpec extends Specification {
                         .flatMap { mongoTemplate.dropCollection(it) }
         ).verifyComplete()
 
+    }
+
+    def cleanupSpec() {
+        context.close()
     }
 
 }
