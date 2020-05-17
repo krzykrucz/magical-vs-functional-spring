@@ -14,11 +14,9 @@ import org.springframework.security.core.userdetails.MapReactiveUserDetailsServi
 import org.springframework.security.core.userdetails.User
 import org.springframework.security.web.server.SecurityWebFilterChain
 import org.springframework.stereotype.Component
-import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.reactive.function.server.ServerResponse
+import org.springframework.web.reactive.function.server.bodyToMono
+import org.springframework.web.reactive.function.server.router
 import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.WebFilter
 import org.springframework.web.server.WebFilterChain
@@ -45,25 +43,32 @@ interface AccountRepository : ReactiveMongoRepository<Account, String>
 
 object AccountNotFoundException : RuntimeException("Account not found")
 
-@RestController
-class AccountController(val accountRepository: AccountRepository) {
+data class CreditAccountRequest(
+    val accountNumber: String,
+    val money: BigDecimal
+)
 
-    @PostMapping("/credit")
-    fun creditAccount(@RequestBody request: CreditAccountRequest): Mono<Account> =
-        accountRepository.findById(request.accountNumber)
-            .failIfEmpty(AccountNotFoundException)
-            .map { account -> account.credit(request.money) }
-            .flatMap { accountRepository.save(it) }
-
-    @PostMapping("/create/{accountNumber}")
-    fun createAccount(@PathVariable("accountNumber") accountNumber: String): Mono<Account> =
-        Account(accountNumber, BigDecimal.ZERO)
-            .let(accountRepository::save)
-
-    data class CreditAccountRequest(
-        val accountNumber: String,
-        val money: BigDecimal
-    )
+@Configuration
+class RoutesConfig {
+    @Bean
+    fun routes(accountRepository: AccountRepository) = router {
+        POST("/credit") { request ->
+            request.bodyToMono<CreditAccountRequest>()
+                .flatMap { (accountNumber, money) ->
+                    accountRepository.findById(accountNumber)
+                        .failIfEmpty(AccountNotFoundException)
+                        .map { account -> account.credit(money) }
+                        .flatMap { accountRepository.save(it) }
+                }
+                .flatMap { ServerResponse.ok().bodyValue(it) }
+        }
+        POST("/create/{accountNumber}") { request ->
+            val accountNumber = request.pathVariable("accountNumber")
+            Account(accountNumber, BigDecimal.ZERO)
+                .let(accountRepository::save)
+                .flatMap { ServerResponse.ok().bodyValue(it) }
+        }
+    }
 }
 
 @Component
