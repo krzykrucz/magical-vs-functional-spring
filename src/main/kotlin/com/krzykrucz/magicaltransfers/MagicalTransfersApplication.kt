@@ -2,8 +2,9 @@ package com.krzykrucz.magicaltransfers
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
+import org.springframework.context.ApplicationContextInitializer
+import org.springframework.context.support.GenericApplicationContext
+import org.springframework.context.support.beans
 import org.springframework.core.io.ClassPathResource
 import org.springframework.data.annotation.Id
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository
@@ -14,6 +15,7 @@ import org.springframework.security.config.web.server.invoke
 import org.springframework.security.core.userdetails.MapReactiveUserDetailsService
 import org.springframework.security.core.userdetails.User
 import org.springframework.web.reactive.function.server.EntityResponse
+import org.springframework.web.reactive.function.server.RouterFunction
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyToMono
 import org.springframework.web.reactive.function.server.router
@@ -25,29 +27,37 @@ import java.util.UUID
 class MagicalTransfersApplication
 
 fun main(args: Array<String>) {
-    runApplication<MagicalTransfersApplication>(*args)
+    runApplication<MagicalTransfersApplication>(*args) {
+        addInitializers(BeansInitializer)
+    }
 }
 
-data class Account(
-    @Id val number: String,
-    val balance: BigDecimal
-) {
-    fun credit(money: BigDecimal) = copy(balance = balance + money)
+val beans = beans {
+    bean {
+        val http = ref<ServerHttpSecurity>()
+        http {
+            authorizeExchange {
+                authorize(anyExchange, authenticated)
+            }
+            httpBasic { }
+        }
+    }
+    bean {
+        User.withDefaultPasswordEncoder()
+            .username("user")
+            .password("password")
+            .roles("USER")
+            .build()
+            .let { MapReactiveUserDetailsService(it) }
+    }
+    bean {
+        val accountRepository = ref<AccountRepository>()
+        routes(accountRepository)
+    }
 }
 
-interface AccountRepository : ReactiveMongoRepository<Account, String>
-
-object AccountNotFoundException : RuntimeException("Account not found")
-
-data class CreditAccountRequest(
-    val accountNumber: String,
-    val money: BigDecimal
-)
-
-@Configuration
-class RoutesConfig {
-    @Bean
-    fun routes(accountRepository: AccountRepository) = router {
+private fun routes(accountRepository: AccountRepository): RouterFunction<ServerResponse> {
+    return router {
         POST("/credit") { request ->
             request.bodyToMono<CreditAccountRequest>()
                 .flatMap { (accountNumber, money) ->
@@ -87,24 +97,23 @@ class RoutesConfig {
     }
 }
 
-@Configuration
-class SecurityConfig {
-
-    @Bean
-    fun userDetailsService(): MapReactiveUserDetailsService =
-        User.withDefaultPasswordEncoder()
-            .username("user")
-            .password("password")
-            .roles("USER")
-            .build()
-            .let { MapReactiveUserDetailsService(it) }
-
-    @Bean
-    fun springSecurityFilterChain(http: ServerHttpSecurity) =
-        http {
-            authorizeExchange {
-                authorize(anyExchange, authenticated)
-            }
-            httpBasic { }
-        }
+object BeansInitializer : ApplicationContextInitializer<GenericApplicationContext> {
+    override fun initialize(applicationContext: GenericApplicationContext) = beans.initialize(applicationContext)
 }
+
+data class Account(
+    @Id val number: String,
+    val balance: BigDecimal
+) {
+    fun credit(money: BigDecimal) = copy(balance = balance + money)
+}
+
+interface AccountRepository : ReactiveMongoRepository<Account, String>
+
+object AccountNotFoundException : RuntimeException("Account not found")
+
+data class CreditAccountRequest(
+    val accountNumber: String,
+    val money: BigDecimal
+)
+
