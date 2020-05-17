@@ -2,7 +2,6 @@ package com.krzykrucz.magicaltransfers
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
-import org.springframework.boot.web.reactive.error.ErrorWebExceptionHandler
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.annotation.Id
@@ -13,13 +12,10 @@ import org.springframework.security.config.web.server.ServerHttpSecurity
 import org.springframework.security.core.userdetails.MapReactiveUserDetailsService
 import org.springframework.security.core.userdetails.User
 import org.springframework.security.web.server.SecurityWebFilterChain
-import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.server.EntityResponse
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyToMono
 import org.springframework.web.reactive.function.server.router
-import org.springframework.web.server.ServerWebExchange
-import reactor.core.publisher.Mono
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -77,21 +73,16 @@ class RoutesConfig {
                     else responseBuilder.build()
                 }
         }
-    }
-}
-
-@Component
-class GlobalErrorWebExceptionHandler : ErrorWebExceptionHandler {
-    override fun handle(exchange: ServerWebExchange, error: Throwable): Mono<Void> =
-        when (error) {
-            is AccountNotFoundException -> HttpStatus.NOT_FOUND
-            else -> HttpStatus.INTERNAL_SERVER_ERROR
+        onError<Throwable> { error, _ ->
+            when (error) {
+                is AccountNotFoundException -> HttpStatus.NOT_FOUND
+                else -> HttpStatus.INTERNAL_SERVER_ERROR
+            }
+                .let(ServerResponse::status)
+                .contentType(MediaType.TEXT_PLAIN)
+                .bodyValue(error.localizedMessage)
         }
-            .let(ServerResponse::status)
-            .contentType(MediaType.TEXT_PLAIN)
-            .bodyValue(error.localizedMessage)
-            .flatMap { it.writeTo(exchange, DefaultResponseContext) }
-
+    }
 }
 
 @Configuration
