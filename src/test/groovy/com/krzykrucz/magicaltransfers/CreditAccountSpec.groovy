@@ -72,8 +72,4 @@ class CreditAccountSpec extends IntegrationSpec {
                 .exchange()
     }
 
-    def authHeader() {
-        new String(Base64.getEncoder().encode("user:password".bytes))
-    }
-
 }
