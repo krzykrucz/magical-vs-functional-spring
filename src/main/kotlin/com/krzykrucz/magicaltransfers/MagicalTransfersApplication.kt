@@ -51,32 +51,47 @@ data class CreditAccountRequest(
 class RoutesConfig {
     @Bean
     fun routes(accountRepository: AccountRepository) = router {
-        POST("/credit") { request ->
-            request.bodyToMono<CreditAccountRequest>()
-                .flatMap { (accountNumber, money) ->
-                    accountRepository.findById(accountNumber)
-                        .failIfEmpty(AccountNotFoundException)
-                        .map { account -> account.credit(money) }
-                        .flatMap { accountRepository.save(it) }
-                }
-                .flatMap { ServerResponse.ok().bodyValue(it) }
+        "/credit".nest {
+            POST("") { request ->
+                request.bodyToMono<CreditAccountRequest>()
+                    .flatMap { (accountNumber, money) ->
+                        accountRepository.findById(accountNumber)
+                            .failIfEmpty(AccountNotFoundException)
+                            .map { account -> account.credit(money) }
+                            .flatMap { accountRepository.save(it) }
+                    }
+                    .flatMap { ServerResponse.ok().bodyValue(it) }
+            }
+            filter { request, handler ->
+                val trace = request.headers().firstHeader("TraceId") ?: "${UUID.randomUUID()}"
+                handler(request)
+                    .flatMap { response ->
+                        val responseBuilder = ServerResponse.from(response)
+                            .header("TraceId", trace)
+                        if (response is EntityResponse<*>) responseBuilder.body(response.inserter())
+                        else responseBuilder.build()
+                    }
+            }
         }
-        POST("/create/{accountNumber}") { request ->
-            val accountNumber = request.pathVariable("accountNumber")
-            Account(accountNumber, BigDecimal.ZERO)
-                .let(accountRepository::save)
-                .flatMap { ServerResponse.ok().bodyValue(it) }
+        "/create".nest {
+            POST("/{accountNumber}") { request ->
+                val accountNumber = request.pathVariable("accountNumber")
+                Account(accountNumber, BigDecimal.ZERO)
+                    .let(accountRepository::save)
+                    .flatMap { ServerResponse.ok().bodyValue(it) }
+            }
+            filter { request, handler ->
+                val trace = request.headers().firstHeader("Trace-Id") ?: "${UUID.randomUUID()}"
+                handler(request)
+                    .flatMap { response ->
+                        val responseBuilder = ServerResponse.from(response)
+                            .header("Trace-Id", trace)
+                        if (response is EntityResponse<*>) responseBuilder.body(response.inserter())
+                        else responseBuilder.build()
+                    }
+            }
         }
-        filter { request, handler ->
-            val trace = request.headers().firstHeader("Trace-Id") ?: "${UUID.randomUUID()}"
-            handler(request)
-                .flatMap { response ->
-                    val responseBuilder = ServerResponse.from(response)
-                        .header("Trace-Id", trace)
-                    if (response is EntityResponse<*>) responseBuilder.body(response.inserter())
-                    else responseBuilder.build()
-                }
-        }
+
     }
 }
 
