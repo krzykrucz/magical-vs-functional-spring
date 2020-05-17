@@ -4,6 +4,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.io.ClassPathResource
 import org.springframework.data.annotation.Id
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository
 import org.springframework.http.HttpStatus
@@ -82,6 +83,7 @@ class RoutesConfig {
                 .contentType(MediaType.TEXT_PLAIN)
                 .bodyValue(error.localizedMessage)
         }
+        resources("/**", ClassPathResource("/htmls/"))
     }
 }
 
