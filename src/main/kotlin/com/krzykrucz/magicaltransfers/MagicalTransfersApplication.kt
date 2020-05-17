@@ -14,12 +14,11 @@ import org.springframework.security.core.userdetails.MapReactiveUserDetailsServi
 import org.springframework.security.core.userdetails.User
 import org.springframework.security.web.server.SecurityWebFilterChain
 import org.springframework.stereotype.Component
+import org.springframework.web.reactive.function.server.EntityResponse
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.bodyToMono
 import org.springframework.web.reactive.function.server.router
 import org.springframework.web.server.ServerWebExchange
-import org.springframework.web.server.WebFilter
-import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
 import java.math.BigDecimal
 import java.util.UUID
@@ -68,6 +67,16 @@ class RoutesConfig {
                 .let(accountRepository::save)
                 .flatMap { ServerResponse.ok().bodyValue(it) }
         }
+        filter { request, handler ->
+            val trace = request.headers().firstHeader("Trace-Id") ?: "${UUID.randomUUID()}"
+            handler(request)
+                .flatMap { response ->
+                    val responseBuilder = ServerResponse.from(response)
+                        .header("Trace-Id", trace)
+                    if (response is EntityResponse<*>) responseBuilder.body(response.inserter())
+                    else responseBuilder.build()
+                }
+        }
     }
 }
 
@@ -83,15 +92,6 @@ class GlobalErrorWebExceptionHandler : ErrorWebExceptionHandler {
             .bodyValue(error.localizedMessage)
             .flatMap { it.writeTo(exchange, DefaultResponseContext) }
 
-}
-
-@Component
-class TracingWebFilter : WebFilter {
-    override fun filter(exchange: ServerWebExchange, webFilterChain: WebFilterChain): Mono<Void> {
-        val trace = exchange.request.headers["Trace-Id"]?.get(0) ?: "${UUID.randomUUID()}"
-        exchange.response.headers.add("Trace-Id", trace)
-        return webFilterChain.filter(exchange)
-    }
 }
 
 @Configuration
