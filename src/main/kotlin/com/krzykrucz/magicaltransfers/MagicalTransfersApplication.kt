@@ -6,7 +6,7 @@ import org.springframework.boot.web.reactive.error.ErrorWebExceptionHandler
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.annotation.Id
-import org.springframework.data.mongodb.repository.ReactiveMongoRepository
+import org.springframework.data.mongodb.repository.CoroutineMongoRepository
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.config.web.server.ServerHttpSecurity
@@ -41,7 +41,7 @@ data class Account(
     fun credit(money: BigDecimal) = copy(balance = balance + money)
 }
 
-interface AccountRepository : ReactiveMongoRepository<Account, String>
+interface AccountRepository : CoroutineMongoRepository<Account, String>
 
 object AccountNotFoundException : RuntimeException("Account not found")
 
@@ -49,34 +49,36 @@ object AccountNotFoundException : RuntimeException("Account not found")
 class AccountController(val accountRepository: AccountRepository) {
 
     @PostMapping("/credit")
-    fun creditAccount(@RequestBody request: CreditAccountRequest): Mono<Account> =
-        accountRepository.findById(request.accountNumber)
-            .failIfEmpty(AccountNotFoundException)
-            .map { account -> account.credit(request.money) }
-            .flatMap { accountRepository.save(it) }
+    suspend fun creditAccount(@RequestBody request: CreditAccountRequest): Account {
+        val account = accountRepository.findById(request.accountNumber)
+            ?: throw AccountNotFoundException
+        val creditedAccount = account.credit(request.money)
+        return accountRepository.save(creditedAccount)
+    }
 
     @PostMapping("/create/{accountNumber}")
-    fun createAccount(@PathVariable("accountNumber") accountNumber: String): Mono<Account> =
+    suspend fun createAccount(@PathVariable("accountNumber") accountNumber: String): Account =
         Account(accountNumber, BigDecimal.ZERO)
-            .let(accountRepository::save)
-
-    data class CreditAccountRequest(
-        val accountNumber: String,
-        val money: BigDecimal
-    )
+            .let { accountRepository.save(it) }
 }
+
+data class CreditAccountRequest(
+    val accountNumber: String,
+    val money: BigDecimal
+)
 
 @Component
 class GlobalErrorWebExceptionHandler : ErrorWebExceptionHandler {
-    override fun handle(exchange: ServerWebExchange, error: Throwable): Mono<Void> =
-        when (error) {
+    override fun handle(exchange: ServerWebExchange, error: Throwable): Mono<Void> {
+        val status = when (error) {
             is AccountNotFoundException -> HttpStatus.NOT_FOUND
             else -> HttpStatus.INTERNAL_SERVER_ERROR
         }
-            .let(ServerResponse::status)
+        return ServerResponse.status(status)
             .contentType(MediaType.TEXT_PLAIN)
             .bodyValue(error.localizedMessage)
             .flatMap { it.writeTo(exchange, DefaultResponseContext) }
+    }
 
 }
 
