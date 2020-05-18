@@ -87,20 +87,18 @@ private fun routes(accountRepository: AccountRepository): RouterFunction<ServerR
         }
         filter { request, handler ->
             val trace = request.headers().firstHeader("Trace-Id") ?: "${UUID.randomUUID()}"
-            handler(request)
-                .let { response ->
-                    val responseBuilder = ServerResponse.from(response)
-                        .header("Trace-Id", trace)
-                    if (response is EntityResponse<*>) responseBuilder.bodyValueAndAwait(response.entity())
-                    else responseBuilder.buildAndAwait()
-                }
+            val response = handler(request)
+            val responseBuilder = ServerResponse.from(response)
+                .header("Trace-Id", trace)
+            if (response is EntityResponse<*>) responseBuilder.bodyValueAndAwait(response.entity())
+            else responseBuilder.buildAndAwait()
         }
         onError<Throwable> { error, _ ->
-            when (error) {
+            val status = when (error) {
                 is AccountNotFoundException -> HttpStatus.NOT_FOUND
                 else -> HttpStatus.INTERNAL_SERVER_ERROR
             }
-                .let(ServerResponse::status)
+            ServerResponse.status(status)
                 .contentType(MediaType.TEXT_PLAIN)
                 .bodyValueAndAwait(error.localizedMessage)
         }
