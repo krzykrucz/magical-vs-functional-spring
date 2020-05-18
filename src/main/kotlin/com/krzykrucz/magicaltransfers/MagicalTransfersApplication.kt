@@ -56,10 +56,7 @@ val beans = beans {
             .build()
             .let { MapReactiveUserDetailsService(it) }
     }
-    bean {
-        val accountRepository = ref<AccountRepository>()
-        routes(accountRepository)
-    }
+    bean(::routes)
 }
 
 private fun routes(accountRepository: AccountRepository): RouterFunction<ServerResponse> {
