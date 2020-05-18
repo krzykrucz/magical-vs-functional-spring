@@ -1,4 +1,4 @@
-# Magical transfers
+# Magical VS. Functional Spring configuration
 
 ### In the past...
 ...JavaConfig servlet and IoC configuration based on annotations wasn't much of an improvement comparing to the XML-based config.
