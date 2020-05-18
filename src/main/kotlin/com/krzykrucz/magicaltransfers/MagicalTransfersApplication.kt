@@ -32,6 +32,10 @@ fun main(args: Array<String>) {
     }
 }
 
+object BeansInitializer : ApplicationContextInitializer<GenericApplicationContext> {
+    override fun initialize(applicationContext: GenericApplicationContext) = beans.initialize(applicationContext)
+}
+
 val beans = beans {
     bean {
         val http = ref<ServerHttpSecurity>()
@@ -95,10 +99,6 @@ private fun routes(accountRepository: AccountRepository): RouterFunction<ServerR
         }
         resources("/**", ClassPathResource("/htmls/"))
     }
-}
-
-object BeansInitializer : ApplicationContextInitializer<GenericApplicationContext> {
-    override fun initialize(applicationContext: GenericApplicationContext) = beans.initialize(applicationContext)
 }
 
 data class Account(
