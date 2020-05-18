@@ -1,5 +1,7 @@
 package com.krzykrucz.magicaltransfers
 
+import kotlinx.coroutines.reactive.awaitFirst
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.context.ApplicationContextInitializer
@@ -17,8 +19,10 @@ import org.springframework.security.core.userdetails.User
 import org.springframework.web.reactive.function.server.EntityResponse
 import org.springframework.web.reactive.function.server.RouterFunction
 import org.springframework.web.reactive.function.server.ServerResponse
-import org.springframework.web.reactive.function.server.bodyToMono
-import org.springframework.web.reactive.function.server.router
+import org.springframework.web.reactive.function.server.awaitBody
+import org.springframework.web.reactive.function.server.bodyValueAndAwait
+import org.springframework.web.reactive.function.server.buildAndAwait
+import org.springframework.web.reactive.function.server.coRouter
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -61,31 +65,34 @@ val beans = beans {
 }
 
 private fun routes(accountRepository: AccountRepository): RouterFunction<ServerResponse> {
-    return router {
+    return coRouter {
         POST("/credit") { request ->
-            request.bodyToMono<CreditAccountRequest>()
-                .flatMap { (accountNumber, money) ->
-                    accountRepository.findById(accountNumber)
-                        .failIfEmpty(AccountNotFoundException)
-                        .map { account -> account.credit(money) }
-                        .flatMap { accountRepository.save(it) }
-                }
-                .flatMap { ServerResponse.ok().bodyValue(it) }
+            val (accountNumber, money) = request.awaitBody<CreditAccountRequest>()
+            val account = accountRepository.findById(accountNumber)
+                .awaitFirstOrNull()
+                ?: throw AccountNotFoundException
+            val creditedAccount = account.credit(money)
+            val savedAccount = accountRepository.save(creditedAccount).awaitFirst()
+
+            ServerResponse.ok()
+                .bodyValueAndAwait(savedAccount)
         }
         POST("/create/{accountNumber}") { request ->
             val accountNumber = request.pathVariable("accountNumber")
-            Account(accountNumber, BigDecimal.ZERO)
-                .let(accountRepository::save)
-                .flatMap { ServerResponse.ok().bodyValue(it) }
+            val account = Account(accountNumber, BigDecimal.ZERO)
+            val savedAccount = accountRepository.save(account).awaitFirst()
+
+            ServerResponse.ok()
+                .bodyValueAndAwait(savedAccount)
         }
         filter { request, handler ->
             val trace = request.headers().firstHeader("Trace-Id") ?: "${UUID.randomUUID()}"
             handler(request)
-                .flatMap { response ->
+                .let { response ->
                     val responseBuilder = ServerResponse.from(response)
                         .header("Trace-Id", trace)
-                    if (response is EntityResponse<*>) responseBuilder.body(response.inserter())
-                    else responseBuilder.build()
+                    if (response is EntityResponse<*>) responseBuilder.bodyValueAndAwait(response.entity())
+                    else responseBuilder.buildAndAwait()
                 }
         }
         onError<Throwable> { error, _ ->
@@ -95,7 +102,7 @@ private fun routes(accountRepository: AccountRepository): RouterFunction<ServerR
             }
                 .let(ServerResponse::status)
                 .contentType(MediaType.TEXT_PLAIN)
-                .bodyValue(error.localizedMessage)
+                .bodyValueAndAwait(error.localizedMessage)
         }
         resources("/**", ClassPathResource("/htmls/"))
     }
