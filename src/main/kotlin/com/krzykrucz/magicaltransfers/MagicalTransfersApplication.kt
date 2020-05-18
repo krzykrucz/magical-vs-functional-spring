@@ -1,7 +1,5 @@
 package com.krzykrucz.magicaltransfers
 
-import kotlinx.coroutines.reactive.awaitFirst
-import kotlinx.coroutines.reactive.awaitFirstOrNull
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.context.ApplicationContextInitializer
@@ -9,7 +7,7 @@ import org.springframework.context.support.GenericApplicationContext
 import org.springframework.context.support.beans
 import org.springframework.core.io.ClassPathResource
 import org.springframework.data.annotation.Id
-import org.springframework.data.mongodb.repository.ReactiveMongoRepository
+import org.springframework.data.mongodb.repository.CoroutineMongoRepository
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.config.web.server.ServerHttpSecurity
@@ -69,10 +67,9 @@ private fun routes(accountRepository: AccountRepository): RouterFunction<ServerR
         POST("/credit") { request ->
             val (accountNumber, money) = request.awaitBody<CreditAccountRequest>()
             val account = accountRepository.findById(accountNumber)
-                .awaitFirstOrNull()
                 ?: throw AccountNotFoundException
             val creditedAccount = account.credit(money)
-            val savedAccount = accountRepository.save(creditedAccount).awaitFirst()
+            val savedAccount = accountRepository.save(creditedAccount)
 
             ServerResponse.ok()
                 .bodyValueAndAwait(savedAccount)
@@ -80,7 +77,7 @@ private fun routes(accountRepository: AccountRepository): RouterFunction<ServerR
         POST("/create/{accountNumber}") { request ->
             val accountNumber = request.pathVariable("accountNumber")
             val account = Account(accountNumber, BigDecimal.ZERO)
-            val savedAccount = accountRepository.save(account).awaitFirst()
+            val savedAccount = accountRepository.save(account)
 
             ServerResponse.ok()
                 .bodyValueAndAwait(savedAccount)
@@ -113,7 +110,7 @@ data class Account(
     fun credit(money: BigDecimal) = copy(balance = balance + money)
 }
 
-interface AccountRepository : ReactiveMongoRepository<Account, String>
+interface AccountRepository : CoroutineMongoRepository<Account, String>
 
 object AccountNotFoundException : RuntimeException("Account not found")
 
