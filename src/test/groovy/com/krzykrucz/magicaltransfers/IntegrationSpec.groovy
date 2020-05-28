@@ -43,4 +43,10 @@ class IntegrationSpec extends Specification {
 
     }
 
+    protected def "create account"(number) {
+        webClientWithAuth
+                .post().uri("/create/$number")
+                .exchange()
+    }
+
 }
