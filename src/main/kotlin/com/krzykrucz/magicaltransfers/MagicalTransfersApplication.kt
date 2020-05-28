@@ -68,6 +68,15 @@ data class CreditAccountRequest(
 )
 
 @Component
+class TracingWebFilter : WebFilter {
+    override fun filter(exchange: ServerWebExchange, webFilterChain: WebFilterChain): Mono<Void> {
+        val trace = exchange.request.headers["Trace-Id"]?.get(0) ?: "${UUID.randomUUID()}"
+        exchange.response.headers.add("Trace-Id", trace)
+        return webFilterChain.filter(exchange)
+    }
+}
+
+@Component
 class GlobalErrorWebExceptionHandler : ErrorWebExceptionHandler {
     override fun handle(exchange: ServerWebExchange, error: Throwable): Mono<Void> {
         val status = when (error) {
@@ -80,15 +89,6 @@ class GlobalErrorWebExceptionHandler : ErrorWebExceptionHandler {
             .flatMap { it.writeTo(exchange, DefaultResponseContext) }
     }
 
-}
-
-@Component
-class TracingWebFilter : WebFilter {
-    override fun filter(exchange: ServerWebExchange, webFilterChain: WebFilterChain): Mono<Void> {
-        val trace = exchange.request.headers["Trace-Id"]?.get(0) ?: "${UUID.randomUUID()}"
-        exchange.response.headers.add("Trace-Id", trace)
-        return webFilterChain.filter(exchange)
-    }
 }
 
 @Configuration
