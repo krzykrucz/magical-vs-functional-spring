@@ -15,7 +15,6 @@ import org.springframework.security.config.web.server.invoke
 import org.springframework.security.core.userdetails.MapReactiveUserDetailsService
 import org.springframework.security.core.userdetails.User
 import org.springframework.web.reactive.function.server.EntityResponse
-import org.springframework.web.reactive.function.server.RouterFunction
 import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.awaitBody
 import org.springframework.web.reactive.function.server.bodyValueAndAwait
@@ -59,45 +58,43 @@ val beans = beans {
     bean(::routes)
 }
 
-private fun routes(accountRepository: AccountRepository): RouterFunction<ServerResponse> {
-    return coRouter {
-        POST("/credit") { request ->
-            val (accountNumber, money) = request.awaitBody<CreditAccountRequest>()
-            val account = accountRepository.findById(accountNumber)
-                ?: throw AccountNotFoundException
-            val creditedAccount = account.credit(money)
-            val savedAccount = accountRepository.save(creditedAccount)
+private fun routes(accountRepository: AccountRepository) = coRouter {
+    POST("/credit") { request ->
+        val (accountNumber, money) = request.awaitBody<CreditAccountRequest>()
+        val account = accountRepository.findById(accountNumber)
+            ?: throw AccountNotFoundException
+        val creditedAccount = account.credit(money)
+        val savedAccount = accountRepository.save(creditedAccount)
 
-            ServerResponse.ok()
-                .bodyValueAndAwait(savedAccount)
-        }
-        POST("/create/{accountNumber}") { request ->
-            val accountNumber = request.pathVariable("accountNumber")
-            val account = Account(accountNumber, BigDecimal.ZERO)
-            val savedAccount = accountRepository.save(account)
-
-            ServerResponse.ok()
-                .bodyValueAndAwait(savedAccount)
-        }
-        filter { request, handler ->
-            val trace = request.headers().firstHeader("Trace-Id") ?: "${UUID.randomUUID()}"
-            val response = handler(request)
-            val responseBuilder = ServerResponse.from(response)
-                .header("Trace-Id", trace)
-            if (response is EntityResponse<*>) responseBuilder.bodyValueAndAwait(response.entity())
-            else responseBuilder.buildAndAwait()
-        }
-        onError<Throwable> { error, _ ->
-            val status = when (error) {
-                is AccountNotFoundException -> HttpStatus.NOT_FOUND
-                else -> HttpStatus.INTERNAL_SERVER_ERROR
-            }
-            ServerResponse.status(status)
-                .contentType(MediaType.TEXT_PLAIN)
-                .bodyValueAndAwait(error.localizedMessage)
-        }
-        resources("/**", ClassPathResource("/htmls/"))
+        ServerResponse.ok()
+            .bodyValueAndAwait(savedAccount)
     }
+    POST("/create/{accountNumber}") { request ->
+        val accountNumber = request.pathVariable("accountNumber")
+        val account = Account(accountNumber, BigDecimal.ZERO)
+        val savedAccount = accountRepository.save(account)
+
+        ServerResponse.ok()
+            .bodyValueAndAwait(savedAccount)
+    }
+    filter { request, handler ->
+        val trace = request.headers().firstHeader("Trace-Id") ?: "${UUID.randomUUID()}"
+        val response = handler(request)
+        val responseBuilder = ServerResponse.from(response)
+            .header("Trace-Id", trace)
+        if (response is EntityResponse<*>) responseBuilder.bodyValueAndAwait(response.entity())
+        else responseBuilder.buildAndAwait()
+    }
+    onError<Throwable> { error, _ ->
+        val status = when (error) {
+            is AccountNotFoundException -> HttpStatus.NOT_FOUND
+            else -> HttpStatus.INTERNAL_SERVER_ERROR
+        }
+        ServerResponse.status(status)
+            .contentType(MediaType.TEXT_PLAIN)
+            .bodyValueAndAwait(error.localizedMessage)
+    }
+    resources("/**", ClassPathResource("/htmls/"))
 }
 
 data class Account(
