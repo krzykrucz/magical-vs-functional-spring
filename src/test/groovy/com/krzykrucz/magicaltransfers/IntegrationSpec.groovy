@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.ApplicationContext
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
+import org.springframework.security.core.userdetails.User
 import org.springframework.test.web.reactive.server.WebTestClient
 import reactor.test.StepVerifier
 import spock.lang.Specification
@@ -32,7 +33,8 @@ class IntegrationSpec extends Specification {
                 .configureClient()
                 .build()
                 .mutateWith(csrf())
-        webClientWithAuth = webClientNoAuth.mutateWith(mockUser())
+        webClientWithAuth = webClientNoAuth.mutateWith(mockUser(
+                user('user', 'password', 'USER')))
     }
 
     def cleanup() {
@@ -47,6 +49,13 @@ class IntegrationSpec extends Specification {
         webClientWithAuth
                 .post().uri("/create/$number")
                 .exchange()
+    }
+
+    private static def user(username, password, role) {
+        User.withUsername(username)
+                .password(password)
+                .roles(role)
+                .build()
     }
 
 }
